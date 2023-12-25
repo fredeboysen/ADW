@@ -1,0 +1,19 @@
+#########################################################
+# Course: Machine Learning
+#########################################################
+# Modeling packages 
+library(rsample)   # for resampling procedures
+library(caret)     # for resampling and model training # a meta-engine
+
+# pumpkin data
+pumpkin <- read.csv("~/ML1/Exam2023/pumpkintrain.csv")
+pumpkin <- na.omit(pumpkin)
+pumpkin <- pumpkin %>%
+  select(-Repack)
+
+# Data partitioning (we apply stratified sampling here) 
+set.seed(123)
+split <- initial_split(pumpkin, prop = 0.7, 
+                       strata = "price")
+pumpkin_train  <- training(split)
+pumpkin_test   <- testing(split)
