@@ -1,4 +1,12 @@
 #########################################################
+# There are 4 pumking csv's
+# 1. the original
+# 2. deleted all the variables with missing data
+# 3. as above + deleted nzv (repack) and deleted high/low price
+# 4. as above + blueprint, meaning I have no variables with missing data, but I have not transformed the data. 
+
+
+#########################################################
 # Course: Machine Learning
 #########################################################
 # Modeling packages 
