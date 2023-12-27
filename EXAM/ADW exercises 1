@@ -16,9 +16,16 @@ library(ggplot2)     # for visualization
 library(visdat)      # for visualization
 library (Hmisc)      # for visualization
 
+### a. Upload the data in RStudio (add stringsAsFactors = TRUE to treat character columns as factors).
+
 setwd("/Users/frederikboysen/Desktop/Eksamen ML/Applied Data Work")
 
 data <- read.csv("/Users/frederikboysen/Desktop/Eksamen ML/Applied Data Work/US-pumpkins.csv", stringsAsFactors=TRUE)
+
+### b. Get a glimpse and dimensions of the data. Check the variable type. Print a few rows of the dataset. 
+ ### As evident, the dataset exhibits significant noise and imperfections, necessitating rigorous preprocessing procedures. 
+ ### While the variable types are not explicitly provided, they can be inferred from the dataset.
+
 
 View(data)
 summary(data)
@@ -29,10 +36,13 @@ glimpse(data)
 # Show the first 10 rows of each of the columns
 data[1:10, ]
 
-# Deleting unknown variables X and X1 - I use The subset( ) function is the easiest way to select variables and observations.
+### c. Deleting unknown variables X and X1  
+
+# I use The subset( ) function is the easiest way to select variables and observations.
 data = subset(data, select = -c(X, X.1))
 
-# extracting the month and the year into two new columns and remove the original Date
+### d. In the Date variable, the values are US dates, so the format is MM/DD/YYYY. You may consider
+ # extracting the month and the year into two new columns and remove the original Date.
 
 data <- data %>%
   mutate(Date = mdy(Date), 
@@ -45,7 +55,8 @@ str(data)
 data$month= factor(data$month)
 data$year= factor(data$year)
 
-### Evaluate the missing data. ###
+### e. Evaluate the missing data. Decide which method of treating missing data will be applied. 
+ ### You may consider deleting the variables with an extreme number of missing values from the dataset.
 
 #ensure the missing data are coded correctly (NA)
 data[data ==""] <- NA 
@@ -82,7 +93,8 @@ colSums(is.na(data))
 # example Item.Size is categorical, I could have used median if it was numerical
 
 
-### Create new variable: average price and normalize it ###
+### f. Create the dependent variable: average price is (Low Price+High Price)/2. Evaluate its distribution and 
+ ### check various transformations to normalize it. Decide what transformation will be most appropriate. ###
 
 data <- data %>%
   mutate(Average.Price = ((Low.Price + High.Price) / 2))
@@ -112,7 +124,7 @@ hist(transform_boxcox)
 
 # BoxCox looks the most appropriate
 
-### Evaluate the features with zero and near-zero variance ###
+### g. Evaluate the features with zero and near-zero variance. Decide which variables will be eliminated.
 
 library(caret)
 caret::nearZeroVar(data, saveMetrics = TRUE) %>% 
@@ -123,7 +135,7 @@ caret::nearZeroVar(data, saveMetrics = TRUE) %>%
 
 data = subset(data, select = -Repack)
 
-### Display the distributions of the numeric features. Decide what type of pre-processing to be implemented later. ###
+### h. Display the distributions of the numeric features. Decide what type of pre-processing to be implemented later. ###
 
 plot_histogram(data) 
 
@@ -136,7 +148,7 @@ plot_histogram(data)
 # step_center(all_numeric(), -all_outcomes()) %>%
 # step_scale(all_numeric(), -all_outcomes())
 
-## Display the distributions of factor features. Decide what type of pre-processing to be implemented. ##
+### i. Display the distributions of factor features. Decide what type of pre-processing to be implemented. ##
 
 plot_bar(data)  
 
@@ -152,7 +164,7 @@ count(data, Package) %>%
 # Where i will use 5% as my treshold, where all the predictors that are less than 5% will be 
 # labelled "other"
 
-### creating a blueprint ###
+### j. creating a blueprint ###
 
 blueprint <- recipe(Average.Price ~ ., data = data) %>%
   step_impute_knn(all_predictors(), neighbors = 6) %>% # Use KNN to impute the missing values
@@ -184,7 +196,7 @@ dim(baked_test)
 
 view(baked_train)
 
-### train a set of regression models to predict the average price of pumpkin in the US market. ###
+### k. Train a set of regression models to predict the average price of pumpkin in the US market. ###
 
 # model 1 OLS
 OLS <- train(
@@ -242,6 +254,8 @@ cv_model_pls$results %>%
   dplyr::filter(ncomp == pull(cv_model_pls$bestTune))
 ggplot(cv_model_pls) 
 
+### l. Summarize the results for all the models and select the best model.
+
 results <- resamples(list(OLS = OLS,
                           KNN = KNN,
                           pcr = cv_model_pcr,
@@ -250,7 +264,7 @@ summary(results)
 bwplot(results)
 dotplot(results)
 
-### Evaluate and interpret the error in the test data for the best model. ###
+### m. Evaluate and interpret the error in the test data for the best model. ###
 
 predictions1 <- predict(OLS, baked_test) 
 predictions1 
@@ -278,8 +292,7 @@ results_newtest <- list(RMSE1,RMSE2, RMSE3, RMSE4)
 names(results_newtest) <- c("Test_er_reg1", "Test_er_reg2", "Test_er_PCR", "Test_er_PLS")
 results_newtest
 
-
-### Feature importance ###
+### n. Feature importance ###
 vip::vip(KNN, method = "model")
 vip::vip(OLS, method = "model")
 vip::vip(cv_model_pcr, method = "model")
