@@ -1,0 +1,288 @@
+# Helper packages
+library(dplyr)    # for data manipulation
+library(ggplot2)  # for awesome graphics
+library(visdat)   # for additional visualizations
+library(tidyverse)
+
+# Modelling packages
+library(caret)    # for various ML tasks
+
+# Feature engineering packages
+library(recipes)  # for blueprint
+library(rsample)  # for resampling
+library(forecast) # for prediction
+library(DataExplorer) # for visualization
+library(ggplot2)     # for visualization
+library(visdat)      # for visualization
+library (Hmisc)      # for visualization
+
+setwd("/Users/frederikboysen/Desktop/Eksamen ML/Applied Data Work")
+
+data <- read.csv("/Users/frederikboysen/Desktop/Eksamen ML/Applied Data Work/US-pumpkins.csv", stringsAsFactors=TRUE)
+
+View(data)
+summary(data)
+dim(data)
+str(data)
+glimpse(data)
+
+# Show the first 10 rows of each of the columns
+data[1:10, ]
+
+# Deleting unknown variables X and X1 - I use The subset( ) function is the easiest way to select variables and observations.
+data = subset(data, select = -c(X, X.1))
+
+# extracting the month and the year into two new columns and remove the original Date
+
+data <- data %>%
+  mutate(Date = mdy(Date), 
+         month = month(Date),
+         year = year(Date)) %>%
+  select(-Date)
+
+str(data)
+# Since month and year are numeric, I will make them into factors so they are categorical
+data$month= factor(data$month)
+data$year= factor(data$year)
+
+### Evaluate the missing data. ###
+
+#ensure the missing data are coded correctly (NA)
+data[data ==""] <- NA 
+
+sum(is.na(data))
+
+# Simple plot
+plot_missing(data)
+
+# Advanced plot
+library(ggplot2) 
+data %>%
+  is.na() %>%
+  reshape2::melt() %>%
+  ggplot(aes(Var2, Var1, fill=value)) + 
+  geom_raster() + 
+  coord_flip() +
+  scale_y_continuous(NULL, expand = c(0, 0)) +
+  scale_fill_grey(name = "", 
+                  labels = c("Present", 
+                             "Missing")) +
+  xlab("Observation") +
+  theme(axis.text.y  = element_text(size = 4))
+
+# Deleting the variables with a lot of missing data (Trans.Mode, Crop, Storage, Appearance, Condition, Quality, Environment, Grade)
+data = subset(data, select = -c(Trans.Mode, Crop, Storage, Appearance, Condition, Quality, Environment, Grade, Sub.Variety, Unit.of.Sale, Origin.District, Type))
+
+# See how many missing values there are for each column
+colSums(is.na(data))
+
+# Which method will be applied?
+# Finding values for the variables that have some missing data, here I use KNN
+# I use KNN since the missing values is mostly categorical
+# example Item.Size is categorical, I could have used median if it was numerical
+
+
+### Create new variable: average price and normalize it ###
+
+data <- data %>%
+  mutate(Average.Price = ((Low.Price + High.Price) / 2))
+
+# Check the correlation in the dataset. 
+# I do this since we use 2 variables to make our dependent variable, therefore there could be high correlation
+
+# Select columns 4 to 7 from your dataset, since they are the ones we need
+selected_data <- data[, 4:7]
+
+# Calculate the correlation matrix for these columns
+correlation_matrix <- cor(selected_data)
+
+# It can be seen that high price and low price are highly correlated and will therefore be removed. 
+data = subset(data, select = -c(High.Price, Low.Price, Mostly.High, Mostly.Low))
+
+# Displaying the average price in a historgran to see the distribution
+hist(data$Average.Price)
+
+# Normalizing it using log, boxcox and YeoJohnson
+transform <- log(data$Average.Price) 
+
+transform_boxcox <- forecast::BoxCox(data$Average.Price, lambda = "auto")
+
+hist(transform)
+hist(transform_boxcox)
+
+# BoxCox looks the most appropriate
+
+### Evaluate the features with zero and near-zero variance ###
+
+library(caret)
+caret::nearZeroVar(data, saveMetrics = TRUE) %>% 
+  tibble::rownames_to_column() %>% 
+  filter(nzv)
+
+# Delete Repack
+
+data = subset(data, select = -Repack)
+
+### Display the distributions of the numeric features. Decide what type of pre-processing to be implemented later. ###
+
+plot_histogram(data) 
+
+# based on this output , we can make individual data processing for each variable
+# Alternatively, we will: 
+# Normalize all numeric columns using the blueprint
+#  e.g., data_recipe %>% step_YeoJohnson(all_numeric())  
+# Standardize all numeric values using the blueprint
+# e.g., data_recipe %>%
+# step_center(all_numeric(), -all_outcomes()) %>%
+# step_scale(all_numeric(), -all_outcomes())
+
+## Display the distributions of factor features. Decide what type of pre-processing to be implemented. ##
+
+plot_bar(data)  
+
+# 1. Lumping (collapsing)
+# Check the factors, and conclude if lumping is necessary 
+count(data, Origin) %>%
+  arrange(n)
+
+count(data, Package) %>%
+  arrange(n)
+
+# I will use lumping on these variables by stepother, where I make a variable called other. 
+# Where i will use 5% as my treshold, where all the predictors that are less than 5% will be 
+# labelled "other"
+
+### creating a blueprint ###
+
+blueprint <- recipe(Average.Price ~ ., data = data) %>%
+  step_impute_knn(all_predictors(), neighbors = 6) %>% # Use KNN to impute the missing values
+  step_log(all_outcomes()) %>% # Transform the dependent variable with BoxCox
+  step_other(Package, threshold = 0.05, other = "other") %>% # Lumping the Package variable
+  step_other(Origin, threshold = 0.05, other = "other") %>% # Lumping the Origin variable
+  step_other(month, threshold = 0.05, other = "other") %>% # Lumping the month variable
+  step_nzv(all_predictors()) 
+
+blueprint
+
+# Splitting the data
+set.seed(123) 
+library(rsample) # I'm using the rsample package
+data_split <- initial_split(data, prop = 0.75, strata = "Average.Price")
+data_train  <- training(data_split)
+data_test   <- testing(data_split)
+
+prepare <- prep(blueprint, training = data_train)
+prepare
+# bake: apply the recipe to new data (e.g., the training data or future test data) with bake()
+baked_train <- bake(prepare, new_data = data_train)
+baked_test <- bake(prepare, new_data = data_test)
+baked_train
+baked_test
+
+dim(baked_train)
+dim(baked_test)
+
+view(baked_train)
+
+### train a set of regression models to predict the average price of pumpkin in the US market. ###
+
+# model 1 OLS
+OLS <- train(
+  Average.Price ~ ., 
+  data = baked_train, 
+  method = "lm",
+  trControl = trainControl(method = "cv", number = 10)
+)
+OLS
+summary(OLS)
+
+# model 2 KNN
+hyper_grid <- expand.grid(k = seq(2, 25, by = 1))
+# this parameter tries th k 2-25 as defines in hyper_grid variable
+
+KNN <- train(
+  Average.Price ~ ., 
+  data = baked_train, 
+  method = "knn", 
+  trControl = trainControl(method = "cv", number = 10),
+  tuneGrid = hyper_grid,
+  metric = "RMSE"
+)
+
+summary(KNN)
+plot(KNN)
+KNN
+
+# model PCR   
+set.seed(123)
+cv_model_pcr <- train(
+  Average.Price ~ ., 
+  data = baked_train, 
+  method = "pcr",
+  trControl = trainControl(method = "cv", number = 10),
+  tuneLength = 38 
+)
+cv_model_pcr$bestTune
+cv_model_pcr$results %>%
+  dplyr::filter(ncomp == pull(cv_model_pcr$bestTune))
+ggplot(cv_model_pcr)  
+
+
+# model PLS
+set.seed(123)
+cv_model_pls <- train(
+  Average.Price ~ ., 
+  data = baked_train, 
+  method = "pls",
+  trControl = trainControl(method = "cv", number = 10),
+  tuneLength = 38
+)
+cv_model_pls$bestTune
+cv_model_pls$results %>%
+  dplyr::filter(ncomp == pull(cv_model_pls$bestTune))
+ggplot(cv_model_pls) 
+
+results <- resamples(list(OLS = OLS,
+                          KNN = KNN,
+                          pcr = cv_model_pcr,
+                          pls = cv_model_pls))
+summary(results)
+bwplot(results)
+dotplot(results)
+
+### Evaluate and interpret the error in the test data for the best model. ###
+
+predictions1 <- predict(OLS, baked_test) 
+predictions1 
+RMSE1 = sqrt(sum((baked_test$Average.Price - predictions1)^2/nrow(baked_test)))
+RMSE1
+
+# model reg2
+predictions2 <- predict(KNN, baked_test) 
+predictions2 
+RMSE2 = sqrt(sum((baked_test$Average.Price - predictions2)^2/nrow(baked_test)))
+RMSE2
+
+# model pcr
+predictions_pcr <- predict(cv_model_pcr, baked_test) 
+RMSE3 = sqrt(sum((baked_test$Average.Price - predictions_pcr)^2/nrow(baked_test)))
+RMSE3
+
+# model pls
+predictions_pls <- predict(cv_model_pls, baked_test) 
+RMSE4 = sqrt(sum((baked_test$Average.Price - predictions_pls)^2/nrow(baked_test)))
+RMSE4
+
+# Summary     
+results_newtest <- list(RMSE1,RMSE2, RMSE3, RMSE4)                       
+names(results_newtest) <- c("Test_er_reg1", "Test_er_reg2", "Test_er_PCR", "Test_er_PLS")
+results_newtest
+
+
+### Feature importance ###
+vip::vip(KNN, method = "model")
+vip::vip(OLS, method = "model")
+vip::vip(cv_model_pcr, method = "model")
+vip::vip(cv_model_pls, method = "model")
+
+# The most influential predictors are ....
