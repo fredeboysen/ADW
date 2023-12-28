@@ -163,3 +163,142 @@ pr.out$x[,1:2]
 #    - threshold: % of variance to retain (default: NA)
 #       e.g., step_pca(all_numeric(),-all_outcomes(), threshold = .95)
 ###########################################################################
+
+#########################################################
+# PCR & PLS
+#########################################################
+# Method 2: specify method = "pcr" within train() in caret (see this lecture)
+# In this case, we tune # of components  
+#   e.g., tuneLength = 100
+
+set.seed(12345)
+cv_model_pcr <- train(
+  Average.Price ~ ., 
+  data = pumpkin_train, 
+  method = "pcr", # see method here
+  trControl = trainControl(method = "cv", number = 10),
+  preProcess = c("zv", "center", "scale"), # an integrated method for 
+  # basic data preprocessing (preProcess()) within caret
+  tuneLength = 100 # see tuning parameter here
+)
+
+# The output that can be requested from the model run 
+names(cv_model_pcr)
+
+# model with lowest RMSE
+cv_model_pcr$bestTune
+
+# results for model with lowest RMSE
+cv_model_pcr$results %>%
+  dplyr::filter(ncomp == pull(cv_model_pcr$bestTune))
+
+# plot cross-validated RMSE
+plot(cv_model_pcr$results$RMSE)
+
+# By controlling for multicollinearity with PCR, we experience 
+# significant improvement in our predictive accuracy compared 
+# to the previously obtained linear models.
+# We reduce the cross-validated RMSE to nearly $ ...
+# This is not a rule. Sometimes PCR can perform worse than other models. 
+
+## Partial least squares regression (PLS)
+# _________________________________________
+# Similar to PCR, this technique also constructs a set of linear combinations 
+# of the inputs for regression, but unlike PCR it uses the response variable  
+# to aid the construction of the principal components
+# PCR with caret library simply specify method = "pls" within train() 
+
+# perform 10-fold cross validation on a PLS model tuning the 
+# number of principal components to use as predictors
+set.seed(234)
+cv_model_pls <- train(
+  Average.Price ~ ., 
+  data = pumpkin_train, 
+  method = "pls",
+  trControl = trainControl(method = "cv", number = 10),
+  preProcess = c("zv", "center", "scale"),
+  tuneLength = 100
+)
+
+# model with lowest RMSE
+cv_model_pls$bestTune
+
+
+# results for model with lowest RMSE
+cv_model_pls$results %>%
+  dplyr::filter(ncomp == pull(cv_model_pls$bestTune))
+
+#By controlling for multicollinearity with PLS, we experience 
+# significant improvement in our predictive accuracy compared 
+# to the previously obtained linear models 
+# We reduce the cross-validated RMSE from about to nearly $ ...
+# This is not a rule. Sometimes PLS can perform worse than other models. 
+
+
+# plot cross-validated RMSE
+plot(cv_model_pls$results$RMSE)
+
+
+# ______________________________________________
+# Summary of cv-error for the models tested here
+# ______________________________________________
+summary(resamples(list(
+  model1 = cv_model_pcr, 
+  model2 = cv_model_pls
+)))
+
+
+# _____________________________________________________________________
+# Summary of of cv-error for all models tested here and in R file OLS.R
+# _____________________________________________________________________
+# ! to execute the following lines, first run the code from R file OLS.R
+summary(resamples(list(
+  model1 = cv_model1, 
+  model2 = cv_model2, 
+  model3 = cv_model3,
+  model4 = mod_wo_Garage_Cars,
+  model5 = mod_wo_Garage_Area,
+  model6 = model_withFE,
+  model7 = cv_model_pcr,
+  model8 = cv_model_pls
+)))
+# compare the models based on the output and conclude on the best model/algorithm
+
+
+# ______________________
+# Feature importance 
+# ______________________
+# For PLS and OLS, variable importance can be computed using vip library
+# The importance measure is normalized from 100 (most important) to 0 (least important)
+vip::vip(cv_model_pls, num_features = 20, method = "model")
+vip::vip(cv_model_pcr, num_features = 20, method = "model")
+# Go to the dataset description to understand the meaning of the labels (e.g.,type 
+# ames in the search box and choose Raw Ames Housing Data).
+
+# We can ask for feature importance in the OLS regression run in from R file OLS.R 
+vip::vip(cv_model3, method = "model")
+# notice, they are not the same features
+
+# The command vip does not work for PCR.
+
+# _______________________________________________
+# Test error for both PCR and PLS
+# ________________________________________________
+pred_pcr <- predict(cv_model_pcr, pumpkin_test) 
+pred_pcr 
+
+pred_pls <- predict(cv_model_pls, pumpkin_test) 
+pred_pls 
+# the test RMSEA (Root mean square error of approximation)
+RMSEA_pcr = sqrt(sum((pumpkin_test$Average.Price - pred_pcr)^2/529))
+RMSEA_pcr
+
+RMSEA_pls = sqrt(sum((pumpkin_test$Average.Price - pred_pls)^2/529))
+RMSEA_pls
+
+# The below gives the same as the above
+test_error_pcr = sqrt(mean((pumpkin_test$Average.Price - pred_pcr)^2))
+test_error_pcr
+
+test_error_pls = sqrt(mean((pumpkin_test$Average.Price - pred_pls)^2))
+test_error_pls
