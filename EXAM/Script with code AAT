@@ -99,5 +99,58 @@ test_error_OLS = sqrt(mean((pumpkin_test$Average.Price - pred_ols)^2))
 test_error_OLS
 
 #########################################################
-# PCA
+# PCA - can only be made with continiuos variables (numeric and integer)
+# Therefore I have made a dataset where i have implemented dummy encoding
 #########################################################
+
+#Checking the variables format
+str(pumpkin_data) 
+
+# Deleting 
+
+cormatrix <- cor(pumpkin_data)
+round(cormatrix, 2) 
+str(pumpkin_data) 
+
+## ____________________________________
+##   Run PCA and evaluate the output
+## ____________________________________
+
+pr.out <- prcomp(pumpkin_data, scale=TRUE)
+names(pr.out) #List of the 5 elements, sdev, rotation, center, scale, x
+screeplot(pr.out, type="line") #displays the actual variance
+
+pr.out$x        # PC scores for each record  
+pr.out$sdev     # The std. deviations of each PC
+pr.out$center   # Mean of the original variables
+pr.out$scale    # Std.dev.of the original variables
+pr.out$rotation # PC loading vector; 
+
+# variance and % of variance explained by each PC (eigen values)
+summary(pr.out)
+# alternatively
+pr.var = apply(pr.out$x, 2, var)
+pve = pr.var/sum(pr.var)
+pve
+# Notice, PCs are ranked by how much they describe the data
+# PC1 explains 6.7% of the variance in the data, 
+# PC2 explains 4.4% of the variance in the data, etc..
+
+# Represent explained variance in a graph (scree plot)
+par(mfrow = c(1,2))
+plot(pve, xlab="Principal Components", 
+     ylab= "Proportion of variance explained",
+     ylim=c(0,1), type='b') # identify the elbow of the plot and choose the 
+# number of PC above the elbow
+plot(cumsum(pve), xlab="Principal Component", 
+     ylab="Cumulative Proportion of Variance Explained", 
+     ylim=c(0,1), type='b') # check the cumulative plot and make the decision 
+
+# Visualize the biplot
+par(mfrow=c(1,1))
+biplot(pr.out, scale=0) 
+
+# See the scores on the first two principal components
+pr.out$x[,1:2]
+
+
