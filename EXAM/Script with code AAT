@@ -61,3 +61,42 @@ test_error_pumpkin
 
 ## COMMENT ON THE TEST ERROR AND HOW CLOSE IT IS TO THE ONE WE FOUND BASED ON THE KNN_FIT_PUMPKIN.
 
+#########################################################
+# OLS
+#########################################################
+
+# Multiple LR with OLS - using all predictores
+lm.fit_pumpkin = lm(pumpkin_train$Average.Price ~ ., data=pumpkin_train)
+summary(lm.fit_pumpkin)
+lm.beta(lm.fit_pumpkin)
+# Is there a relationship? 
+  # - Look at F-statistic + its p-value and then to the individual 
+  #   p-values associated with the predictors
+  # - Both are highly significant evidence of a possible association
+
+#________________
+# Using cv OLS
+set.seed(123)
+(cv_model1 <- train(
+  form = Average.Price ~ ., 
+  data = pumpkin_train, 
+  method = "lm",
+  trControl = trainControl(method = "cv", number = 10)
+))
+
+# 95%CI for the coeficients
+confint(lm.fit_pumpkin, level=0.95)
+
+ # plot data and fitted line
+plot( Average.Price ~ ., pumpkin_train)    
+abline(lm.fit,col='red')
+
+# test error
+pred_ols = predict(lm.fit_pumpkin, newdata=pumpkin_test)
+pred_ols
+test_error_OLS = sqrt(mean((pumpkin_test$Average.Price - pred_ols)^2))
+test_error_OLS
+
+#########################################################
+# PCA
+#########################################################
