@@ -153,4 +153,13 @@ biplot(pr.out, scale=0)
 # See the scores on the first two principal components
 pr.out$x[,1:2]
 
-
+###########################################################################
+# The above can also be made in the blueprint
+# Method 1:  integrate PCA into the blueprint 
+# using the command "step_pca(all_numeric())" (see Feature Engineering lecture)
+# The command has 2 tuning parameters
+#    - num_comp: # of components (default: 5)
+#       e.g., step_pca(all_numeric(),-all_outcomes(), num_comp = 5)
+#    - threshold: % of variance to retain (default: NA)
+#       e.g., step_pca(all_numeric(),-all_outcomes(), threshold = .95)
+###########################################################################
