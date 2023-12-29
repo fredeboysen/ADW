@@ -109,7 +109,7 @@ colSums(is.na(pumpkin_data))
 # Drop the rows with missing values
 pumpkin_data <- pumpkin_data %>% drop_na() 
 
-### I first split the data 70/30
+### I first split the data 70/30, and i do it with strate to make sure the dependent variable is equally distributed
 set.seed(123)
 split <- initial_split(pumpkin_data, prop = 0.7, strata = "Average.Price")
 pumpkin_train  <- training(split)
