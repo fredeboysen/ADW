@@ -88,8 +88,13 @@ data = subset(data, select = -Repack)
 # 5. As above, but no lumping made, so still no variables with missing data, but I haven't lumped. I have included high and low price in case i need these
 
   blueprint <- recipe(Average.Price ~ ., data = data) %>%
+    step_impute_knn(all_predictors(), neighbors = 6) %>% # Use KNN to impute the missing values 
+
+# 6. With dummy encoding
+
+  blueprint <- recipe(Average.Price ~ ., data = data) %>%
     step_impute_knn(all_predictors(), neighbors = 6) %>% # Use KNN to impute the missing values
-    step_nzv(all_predictors()) 
+    step_dummy(all_nominal(), -all_outcomes(), one_hot = TRUE)
 
 #########################################################
 # Split and view data based on average price as dependent variable
