@@ -16,6 +16,8 @@ pumpkin_data <- read.csv("/Users/frederikboysen/Desktop/Eksamen ML/Exam2024/US-p
 
 view(pumpkin_data)
 colSums(is.na(pumpkin_data))
+
+# Drop the rows with missing values
 pumpkin_data <- pumpkin_data %>% drop_na() 
 
 ### I first split the data 70/30
