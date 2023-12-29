@@ -1,0 +1,180 @@
+title: "ADW part 2"
+author: "Frederik"
+date: "2023-12-05"
+output: html_document
+---
+
+Load the data file into R. Keep only variables City Name, Variety, Date, Low Price, High Price and Item Size. Delete other variables.
+```{r setup, include=FALSE}
+setwd("/Users/frederikboysen/Desktop/Eksamen ML/Applied Data Work")
+
+data <- read.csv("/Users/frederikboysen/Desktop/Eksamen ML/Applied Data Work/US-pumpkins.csv", stringsAsFactors=TRUE, na.strings = c("","NA"))
+
+library(tidyverse)
+library(ggplot2)
+library(dplyr)    
+library(caret)    
+library(recipes)
+library(vip)    
+library(DataExplorer)
+library (GGally) 
+library(rsample)
+
+data = subset(data, select = c(City.Name, Variety, Date, Low.Price, High.Price, Item.Size))
+
+```
+
+
+Add two new variables: Price=(Low Price+High Price)/2 and Spread=5+ (High Price-Low Price).
+Then, delete the Low Price and High Price variables. Provide histograms and density plots for Price and Spread variables using ggplot2 library. Discuss similarities and differences in these plots.
+```{r cars}
+data <- data %>%
+  mutate(Price = ((Low.Price + High.Price) / 2))
+
+data <- data %>%
+  mutate(Spread = ( 5 + (High.Price - Low.Price)))
+
+data = subset(data, select = -c(High.Price, Low.Price))
+
+ggplot(data) +
+  geom_histogram(aes(x=Spread), binwidth = 5, fill = "red")
+
+ggplot(data) +
+  geom_histogram(aes(x=Price), binwidth = 5, fill = "red")
+
+
+#It can be seen in the plots, that there is a lot with a spread of 5, and therefore a lot of low and high prices are the same. Therefore the spread is overall not that big. 
+# 
+
+```
+
+
+Add two more new variables: the month and the year in which the product was sold, and then delete
+the Date variable. [You may perform this either via Hint in Part 1 or alternatively via a manual
+transformation/coding with first mdy() and then month(), year() functions in library(lubridate).]
+```{r pressure, echo=FALSE}
+data <- data %>%
+  mutate(Date = mdy(Date), 
+         month = month(Date),
+         year = year(Date)) %>%
+  select(-Date)
+```
+
+
+Remove rows that have “ “ (i.e. blank) in either variables Variety or Item Size.
+```{r}
+data[data ==""] <- NA 
+
+sum(is.na(data))
+
+# Simple plot
+plot_missing(data)
+
+data <- na.omit(data, cols = c("Variety", "Item.Size"))
+```
+Suppose that you are a data scientist in a company and the sales department asks more info from
+you on AdjPrice=median(Price_i*Spread_i)/mean(Spread_i), where median and mean are taken
+over all units (i) in the sample. On this original dataset and without resampling, could you provide a point estimate and a standard error for this AdjPrice measure? If so, provide numbers and if not provide commentary.
+```{r}
+n <- length(data$Price) #To get the number of observations
+n
+
+# Set median value of the price & the mean of the spread
+median_price <- median(data$Price)
+mean_spread <- mean(data$Spread)
+
+# Set the adjusted price as mentioned in the exercise - this is the point estimate
+AdjPrice <- median(data$Price * data$Spread) / mean(data$Spread)
+
+# Find the std deviation of actual price and the adj price
+std.dev <- sqrt(sum((data$Price - AdjPrice)^2) / (n - 1))
+
+# Find the std error
+std.error <- std.dev/sqrt(n)
+
+```
+
+
+Set your seed. Use B=1000 bootstrap samples to provide a point estimate, a standard error, and a
+95% confidence interval for this measure. Briefly discuss your results.
+```{r}
+library(boot)
+set.seed(123) #for replicability
+n <- length(data$Price) #To get the number of observations
+n
+
+# In the function I first define the variables i want to use the bootstrap method on. 
+# Here it is price and spread
+# thereafter, I will define the Adjprice again, but this time with the bootstrap outputs. 
+AdjPrice.fn <- function(data, index){
+  Price<-data$Price[index]
+  Spread<-data$Spread[index]
+  median(Price*Spread)/mean(Spread) #This time it calculate it based on the random output it gets from the bootstrapping. 
+}
+
+# Here I test to see what I get of doing 1 bootstrap. Here I get a new AdjPrice that differs each time because it gets different outputs each time. 
+AdjPrice.fn(data, sample(1:1473, 1473, replace = TRUE))
+
+#Now with boot() function
+bstrap <- boot(data=data, statistic=AdjPrice.fn, R=1000) # here R is number of bootstrap, so it basically peforms the same code as above, but 1000 times
+bstrap 
+
+# By plotting, i get a histogram of mean, and a graph of the standard error. 
+plot(bstrap)
+
+# I define my standard error and mean, that I found in the bootstrap, to use in the 95% confidens intervals. When I run my code bstrap, I make a list of 11 elements. The t is the output of median(Price*Spread)/mean(Spread), in the 1000 different bootstraps. 
+standard.error.boot <- sd(bstrap$t)
+standard.error.boot
+mean_boot <- mean(bstrap$t)
+mean_boot
+
+# I will now find the confidens intervals. Since I don't know the z_value for 1472 df, I will use 2 as my z value. The confidence interval can like Mean and standard error differ, because of the bootstrap using different samples, each time it is run. 
+confidens_interval <- c(mean_boot- 2 * standard.error.boot, mean_boot + 2 * standard.error.boot)
+confidens_interval
+
+# Confidence interval between 58.49606 69.58638 means the true mean is with 95% within this interval. This can change if I run my bootstrap code again
+
+```
+
+Split data into training set and test set according to year<2017 and year=2017, respectively.
+```{r}
+
+length(data$year[data$year == 2017])
+length(data$year[data$year < 2017])
+
+data_train <- data[data$year < 2017, ]
+data_test  <- data[data$year == 2017, ]
+```
+
+Transform all categorical variables into factors. Remove years, months, cities with small number of observations. Fix your seed. Split 70% of observations into the training set, and the rest to the test set. Since splitting by year is giving different dataset sizes. 
+```{r}
+split <- initial_split(data, prop = 0.7, strata = "Price")
+pumpkin_train  <- training(split)
+pumpkin_test   <- testing(split)
+```
+
+
+In the prediction task, the response variable is Price, while other variables are predictors. 
+In a linear model and on a training set, estimate (i) OLS, ((ii) ridge with 5-fold cross validation, (iii) lasso with leave one out cross validation.
+```{r}
+# OLS
+# First I will define my linear model, where Price is the response variable, and all the other variables are the independent variables. 
+lm.fit = lm(Price ~ ., data=pumpkin_train)
+plot(lm.fit) 
+summary(lm.fit)  
+# The ols function would be -5.005 + B1*-3.099 ....
+
+## Ridge
+# In order to do ridge, I first have to define x and y
+x <- model.matrix(Price ~ ., pumpkin_train)[, -1]  
+y <- pumpkin_train$Price
+library(glmnet)
+grid <- 10^seq(10, -2, length = 100)
+
+ridge.mod <- glmnet(x, y, alpha = 0, lambda = grid, nfolds = 5)
+
+best.lambda <- ridge.mod$lambda.min
+best.ridge.model <- glmnet(x, y, alpha = 0, lambda = best.lambda)
+
+# Print the best lambda value
+print(best.lambda)
