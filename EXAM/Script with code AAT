@@ -1,7 +1,7 @@
 #########################################################
 # There are 4 pumking csv's
 # 1. the original
-# 2. deleted all the variables with missing data
+# 2. deleted all the variables with missing data + made the average price variable
 # 3. as above + deleted nzv (repack) and deleted high/low price
 # 4. as above + blueprint, meaning I have no variables with missing data, but I have not transformed the data. 
 # 5. As above, but no lumping made, so still no variables with missing data, but I haven't lumped. I have included high and low price in case i need these
