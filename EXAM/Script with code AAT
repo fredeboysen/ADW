@@ -45,7 +45,7 @@ pumpkin_data <- pumpkin_data %>%
 pumpkin_data <- subset(pumpkin_data, select = c(city_name, package, variety, origin, item_size, color))
 
 # Drop rows containing missing values and encode color as factor (category)
-pumpkins_select <- pumpkins_select %>% 
+pumpkins_data <- pumpkins_data %>% 
   drop_na() %>% 
   mutate(color = factor(color))
 
