@@ -418,3 +418,179 @@ test_error_pcr
 
 test_error_pls = sqrt(mean((pumpkin_test$Average.Price - pred_pls)^2))
 test_error_pls
+
+#########################################################
+# LR, LDA & QDA
+#########################################################
+
+setwd("/Users/frederikboysen/Desktop/Eksamen ML/Exam2024")
+pumpkin_data <- read.csv("/Users/frederikboysen/Desktop/Eksamen ML/Exam2024/US-pumpkins_2.csv", stringsAsFactors=TRUE)
+
+view(pumpkin_data)
+
+pumpkin_data[pumpkin_data ==""] <- NA
+
+# Check the missing values in the dataset
+colSums(is.na(pumpkin_data))
+
+# select the variables i want to use in my model
+pumpkin_data <- subset(pumpkin_data, select = c(City.Name, Package, Variety, Origin, Item.Size, Color, Average.Price))
+
+# Drop rows containing missing values 
+pumpkin_data <- pumpkin_data %>% drop_na() 
+
+str(pumpkin_data)
+
+# I will divide the average price into high and low, in order to perform LR
+# I do this by finding the median price, and then use that as seperation value
+
+median(pumpkin_data$Average.Price)
+Avg.Price.bin <- ifelse(pumpkin_data$Average.Price > median(pumpkin_data$Average.Price), "High", "Low")
+
+# Make a new dataframe with the newly created variable and split again
+pumpkin_data = data.frame(pumpkin_data, Avg.Price.bin)
+
+# Make it a factor so I can make LR on it
+pumpkin_data$Avg.Price.bin <- factor(pumpkin_data$Avg.Price.bin)
+
+# make the item size ordinal scaled
+pumpkin_data$Item.Size <- factor(pumpkin_data$Item.Size, 
+                                 levels = c("sml", "med", "med-lge", "lge", "xlge", "jbo", "exjbo"), 
+                                 ordered = TRUE)
+
+
+str(pumpkin_data)
+
+# Display the distributions of factor features
+plot_bar(pumpkin_data) 
+
+# Check the factors, and conclude if lumping is necessary 
+count(pumpkin_data, Origin) %>%
+  arrange(n)
+
+# Lump the origin variable into other for n<10
+pumpkin_data$Origin <- fct_lump_min(pumpkin_data$Origin, min = 10)
+
+
+# Exploring the dataset, in order to see what could have impact on price
+table(is.na(pumpkin_data))
+summary(pumpkin_data)
+pairs(pumpkin_data)
+library (GGally) 
+ggpairs(pumpkin_data [, -c(9)])
+
+# Delete the average price variable, since it can predict the high low variable 
+pumpkin_data <- subset(pumpkin_data, select = -c(Average.Price))
+
+# Split the data into train and test set
+split <- initial_split(pumpkin_data, prop = 0.7, strata = "Avg.Price.bin")
+pumpkin_train  <- training(split)
+pumpkin_test   <- testing(split)
+
+# This is to see what values a certain variable has
+head(pumpkin_data$Item.Size)
+prop.table(table(pumpkin_data$Item.Size)) # to see the distribution of the chosen variable
+
+# multiple LR with all predictors
+set.seed(123)
+cv_model_lr <- train(
+  Avg.Price.bin ~ ., 
+  data = pumpkin_train, 
+  method = "glm",
+  family = "binomial",
+  trControl = trainControl(method = "cv", number = 10)
+)
+
+# Simple model
+model_lr1 <- glm(Avg.Price.bin ~ ., 
+              family = "binomial", 
+              data = pumpkin_train)
+
+#_________________________
+# Test error
+#_________________________
+
+#_________________________
+# LDA with DiscriMiner library
+#_________________________
+
+library(DiscriMiner)
+
+da.reg <- linDA(pumpkin_data[,1:2],pumpkin_data[,3]) #In the first [] bracket put in predictors, and in the second put in dependent variable
+da.reg
+da.reg$functions 
+da.reg$classification
+da.reg$scores 
+# calculate probabilities 
+propensity.owner <- exp(da.reg$scores[,2])/(exp(da.reg$scores[,1])+exp(da.reg$scores[,2])) 
+propensity.owner
+data.frame(Actual=pumpkin_data$Avg.Price.bin,
+           da.reg$classification, 
+           da.reg$scores,  
+           propensity.owner=propensity.owner)
+
+#_________________________
+# LDA with library MASS 
+#_________________________
+
+library(MASS)
+da.reg_beta <- lda(pumpkin_data$Avg.Price.bin ~ ., data = pumpkin_data)
+da.reg_beta # coefficients of linear discriminant; 
+# they reflect the discriminatory power of each variable; 
+# in this case, Lot_size is the most important in discriminating between classes.
+# they are also used to create the LDA decision rule
+# predictions
+predict(da.reg_beta, pumpkin_data) # we get directly probabilities 
+names(predict(da.reg_beta, pumpkin_data))
+predict(da.reg_beta, pumpkin_data)$posterior #probabilities
+predict(da.reg_beta, pumpkin_data)$x # linear discriminant scores
+# NOTE: using the linear discriminant scores for each of the training observation
+# is the second approach to classifying observations
+# these values are compared against an optimum cutting score (average for each group)
+# if the score is lower than the cutting score then we classify in one group
+# if it is higher then it is classified in the other group
+par(mar = rep(2, 4))
+plot(da.reg_beta) # the plot of the linear discriminants
+
+#########################################################
+# Naive Bayes - predicting Item size used data from LR
+#########################################################
+
+library(caret)   # for NB modeling
+library(e1071)   # for NB modeling
+
+# For naive bayes all x's must be categorical
+train.NB <- pumpkin_train
+test.NB <- pumpkin_test
+
+library(ggplot2)
+ggplot(train.NB, aes(Item.Size)) + geom_bar()
+# or
+plot_bar(train.NB$Item.Size)
+
+### NB STARTS HERE ###
+
+library(e1071)
+model.nb <- naiveBayes(Item.Size ~ ., data = train.NB)
+model.nb
+
+# Evaluating the performance of the model  
+# Predict probabilities
+pred.prob.nb <- predict(model.nb, newdata = test.NB, type = "raw")
+pred.prob.nb
+
+# Predict class for the Item size
+pred.class.nb <- predict(model.nb, newdata = test.NB, type = "class")
+pred.class.nb
+
+# deliver the results as a dataframe
+pumpkin_df_nb <- data.frame(actual = test.NB$Item.Size, predicted = pred.class.nb, pred.prob.nb)
+pumpkin_df_nb
+
+library(caret) # Confusion Matrix
+confusionMatrix(pred.class.nb, test.NB$Item.Size)
+
+# it has an accuracy of 0,44% on the test set
+
+library(caTools) # Getting our ROC curve and AUC
+colAUC(pred.prob.nb[,1], test.NB[ ,5], plotROC = TRUE) # 5 here is the column containing our y(Item.size)
