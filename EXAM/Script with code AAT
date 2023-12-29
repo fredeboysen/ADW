@@ -23,8 +23,23 @@ split <- initial_split(pumpkin_data, prop = 0.7, strata = "Average.Price")
 pumpkin_train  <- training(split)
 pumpkin_test   <- testing(split)
 
+# Make sure the splittet variable has the same distribution in both train and test set
 hist(pumpkin_train$Average.Price)
 hist(pumpkin_test$Average.Price)
+
+# Normalize the pricing so that you show the pricing per bushel, and not per 1 1/9 or 1/2 bushel
+pumpkin_data <- pumpkin_data %>% 
+  mutate(Average.Price = case_when(
+    str_detect(Package, "1 1/9") ~ Average.Price/(1.1),
+    str_detect(Package, "1/2") ~ Average.Price*2,
+    TRUE ~ Average.Price))
+
+# Change the name of the packages that are 1 1/9 and 1/2
+pumpkin_data <- pumpkin_data %>% 
+  mutate(Package = case_when(
+    str_detect(Package, "1 1/9") ~ "1 bushel cartons",
+    str_detect(Package, "1/2") ~ "1 bushel cartons",
+    TRUE ~ Package))
 
 #########################################################
 # KNN regression
