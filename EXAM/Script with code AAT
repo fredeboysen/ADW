@@ -376,24 +376,6 @@ summary(resamples(list(
   model2 = cv_model_pls
 )))
 
-
-# _____________________________________________________________________
-# Summary of of cv-error for all models tested here and in R file OLS.R
-# _____________________________________________________________________
-# ! to execute the following lines, first run the code from R file OLS.R
-summary(resamples(list(
-  model1 = cv_model1, 
-  model2 = cv_model2, 
-  model3 = cv_model3,
-  model4 = mod_wo_Garage_Cars,
-  model5 = mod_wo_Garage_Area,
-  model6 = model_withFE,
-  model7 = cv_model_pcr,
-  model8 = cv_model_pls
-)))
-# compare the models based on the output and conclude on the best model/algorithm
-
-
 # ______________________
 # Feature importance 
 # ______________________
