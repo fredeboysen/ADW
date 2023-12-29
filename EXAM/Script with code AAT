@@ -510,6 +510,13 @@ model_lr1 <- glm(Avg.Price.bin ~ .,
 # Test error
 #_________________________
 
+pred_lr <- ifelse(predict(model_lr1, newdata = pumpkin_test) > 0.5, "High", "Low") 
+pred_lr 
+pred_lr <- as.factor(pred_lr)
+
+# Confusion Matrix
+confusionMatrix(pred_lr, pumpkin_test$Avg.Price.bin)
+
 #_________________________
 # LDA with DiscriMiner library
 #_________________________
