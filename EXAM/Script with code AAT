@@ -2,10 +2,94 @@
 # There are 4 pumking csv's
 # 1. the original
 # 2. deleted all the variables with missing data + made the average price variable
+  # Deleting unknown variables X and X1  
+
+  # I use The subset( ) function is the easiest way to select variables and observations.
+  pumpkin_data = subset(pumpkin_data, select = -c(X, X.1))
+
+  # Extracting the month and the year into two new columns and remove the original Date.
+  pumpkin_data <- pumpkin_data %>%
+    mutate(Date = mdy(Date), 
+           month = month(Date),
+           year = year(Date)) %>%
+    select(-Date)
+
+  # Since month and year are numeric, I will make them into factors so they are categorical
+  pumpkin_data$month= factor(pumpkin_data$month)
+  pumpkin_data$year= factor(pumpkin_data$year)
+
+  #Deleting data with missing values
+  #ensure the missing data are coded correctly (NA)
+  pumpkin_data[pumpkin_data ==""] <- NA 
+
+  sum(is.na(pumpkin_data))
+
+  # Deleting the variables with a lot of missing data (Trans.Mode, Crop, Storage, Appearance, Condition, Quality, Environment, Grade)
+  pumpkin_data = subset(pumpkin_data, select = -c(Trans.Mode, Crop, Storage, Appearance, Condition, Quality, Environment, Grade, Sub.Variety, Unit.of.Sale, Origin.District, Type))
+
+  # Simple plot
+  plot_missing(pumpkin_data)
+
+  # See how many missing values there are for each column
+  colSums(is.na(data))
+
+  # Create the dependent variable: average price is (Low Price+High Price)/2
+  pumpkin_data <- pumpkin_data %>%
+  mutate(Average.Price = ((Low.Price + High.Price) / 2))
+
 # 3. as above + deleted nzv (repack) and deleted high/low price
+
+  # Check the correlation in the dataset. 
+  # I do this since we use 2 variables to make our dependent variable, therefore there could be high correlation
+
+  # Select columns 4 to 7 from your dataset, since they are the ones we need
+  selected_data <- pumpkin_data[, 4:7]
+
+  # Calculate the correlation matrix for these columns
+  correlation_matrix <- cor(selected_data)
+
+  # It can be seen that high price and low price are highly correlated and will therefore be removed. 
+  pumpkin_data = subset(pumpkin_data, select = -c(High.Price, Low.Price, Mostly.High, Mostly.Low))
+
+  # Evaluate the features with zero and near-zero variance. Decide which variables will be eliminated.
+  library(caret)
+  caret::nearZeroVar(data, saveMetrics = TRUE) %>% 
+    tibble::rownames_to_column() %>% 
+    filter(nzv)
+
+# Delete Repack
+data = subset(data, select = -Repack)
+
 # 4. as above + blueprint, meaning I have no variables with missing data, but I have not transformed the data. 
+
+  #Display the distributions of factor features. Decide what type of pre-processing to be implemented.
+  plot_bar(data)  
+
+  # 1. Lumping (collapsing)
+  # Check the factors, and conclude if lumping is necessary 
+  count(data, Origin) %>%
+    arrange(n)
+
+  count(data, Package) %>%
+    arrange(n)
+
+  # I will use lumping on these variables by stepother, where I make a variable called other. 
+  # Where i will use 5% as my treshold, where all the predictors that are less than 5% will be 
+  # labelled "other"
+
+  blueprint <- recipe(Average.Price ~ ., data = data) %>%
+    step_impute_knn(all_predictors(), neighbors = 6) %>% # Use KNN to impute the missing values
+    step_log(all_outcomes()) %>% # Transform the dependent variable with BoxCox
+    step_other(Package, threshold = 0.05, other = "other") %>% # Lumping the Package variable
+    step_other(Origin, threshold = 0.05, other = "other") %>% # Lumping the Origin variable
+    step_other(month, threshold = 0.05, other = "other") %>% # Lumping the month variable
+    step_nzv(all_predictors()) 
+
 # 5. As above, but no lumping made, so still no variables with missing data, but I haven't lumped. I have included high and low price in case i need these
 
+  blueprint <- recipe(Average.Price ~ ., data = data) %>%
+    step_impute_knn(all_predictors(), neighbors = 6) %>% # Use KNN to impute the missing values
+    step_nzv(all_predictors()) 
 
 #########################################################
 # Split and view data based on average price as dependent variable
