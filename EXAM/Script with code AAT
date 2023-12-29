@@ -15,6 +15,11 @@ setwd("/Users/frederikboysen/Desktop/Eksamen ML/Exam2024")
 pumpkin_data <- read.csv("/Users/frederikboysen/Desktop/Eksamen ML/Exam2024/US-pumpkins_4.csv", stringsAsFactors=TRUE)
 
 view(pumpkin_data)
+
+#Make sure the NA's are encoded correctly
+pumpkin_data[pumpkin_data ==""] <- NA
+
+# See how many datapoints without values there are for each variable
 colSums(is.na(pumpkin_data))
 
 # Drop the rows with missing values
