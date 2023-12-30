@@ -1,0 +1,607 @@
+#####################################################################
+# Model Selection 
+#####################################################################
+
+
+#### Exercise 8 #######
+
+setwd("/Users/frederikboysen/Desktop/Eksamen ML/Model Selection")
+college <- read.csv("/Users/frederikboysen/Desktop/Eksamen ML/Model Selection/College.csv")
+
+#Look at the data
+View(college)
+
+# Change the first column, to be a row name for each R will not try to perform
+# calculations on the row names
+rownames(college) <- college[, 1]
+View(college)
+
+# Delete the first column in the dataset
+college <- college[, -1]  
+View(college)
+
+# Use the summary() function to produce a numerical summary of the variables in the data set.
+summary(college)
+
+# produce a scatterplot matrix of the first ten columns
+# The pairs() function creates a scatterplot matrix, i.e. a scatterplot for every pair of variables
+# Make the private variabld into i binary variable, with TRUE/FALSE statement
+college$Private <- college$Private == "Yes"
+pairs(college[, 1:10])
+
+# produce side-by-side boxplots of Outstate versus Private
+plot(college$Outstate ~ factor(college$Private), xlab = "Private", ylab = "Outstate")
+
+# Create a new qualitative variable, called Elite, by binning the Top10perc variable
+college$Elite <- factor(ifelse(college$Top10perc > 50, "Yes", "No"))
+summary(college$Elite)
+plot(college$Outstate ~ college$Elite, xlab = "Elite", ylab = "Outstate")
+
+# produce some histograms with differing numbers of bins for a few of the quantitative variables.
+par(mfrow = c(2,2)) #This is to show 4 plots at once
+for (n in c(5, 10, 20, 50)) {
+  hist(college$Enroll, breaks = n, main = paste("n =", n), xlab = "Enroll")
+}
+
+#### Exercise 9 #########
+# Make sure that the missing values have been removed from the data.
+library(ISLR2)
+Auto <- read.table("Auto.data", header = T, na.strings = "?", stringsAsFactors = T)
+Auto2 <- read.table("Auto.data", header = T, na.strings = "?", stringsAsFactors = T)
+View(Auto)
+Auto <- na.omit(Auto) # Removes the rows where data is missing
+
+# a. Which of the predictors are quantitative, and which are qualitative?
+sapply(Auto, class)
+numeric <- which(sapply(Auto, class) == "numeric")
+names(numeric)
+
+# b. What is the range of each quantitative predictor?
+range <- list(
+  mpg = range(Auto$mpg),
+  displacement = range(Auto$displacement),
+  horsepower = range(Auto$horsepower),
+  weight = range(Auto$weight),
+  acceleration = range(Auto$acceleration)
+)
+range
+
+# c. What is the mean and standard deviation of each quantitative predictor?
+# Using sapply to apply the mean function to each column
+means_numeric <- sapply(Auto[numeric], mean, na.rm = TRUE)
+means_numeric
+
+#Stahdard deviation
+sd_numeric <- sapply(Auto[numeric], sd, na.rm = TRUE)
+sd_numeric
+
+## d. Now remove the 10th through 85th observations.
+dummy <- Auto[-c(10:85),]
+
+# Range
+apply(dummy_num, 2, range)
+
+#Mean
+sapply(dummy[numeric], mean, na.rm = TRUE)
+
+#SD
+apply(dummy[numeric],2, sd)
+
+# e. Using the full data set, investigate the predictors graphically, using scatterplots or other tools of your choice.
+pairs(Auto[numeric])
+# Horsepower has some quite good linear relationships with the other variables
+
+# f. Suppose that we wish to predict gas mileage (mpg) on the basis of the other variables. 
+# Do your plots suggest that any of the other variables might be useful in predicting mpg?
+# My answer: The more horsepower the lower mpg
+
+
+#####################################################################
+# Resampling methods
+#####################################################################
+
+## Exercise 5 ###
+
+# a. Fit a logistic regression model that uses income and balance to predict default.
+data("Default")
+view(Default)
+
+set.seed(42)
+glm.fit <- glm(default ~ income + balance, data = Default, family = "binomial")
+summary(glm.fit)
+
+# The syntax of the glm() function is similar to that of lm(), 
+# except that we must pass in the argument family = binomial in order 
+# to tell R to run a logistic regression rather than some other type of generalized linear model.
+
+# b. Using the validation set approach, estimate the test error of this model
+
+# Split the sample set into a training set and a validation set.
+set.seed(123) 
+library(rsample) # I'm using the rsample package
+data_split <- initial_split(Default, prop = 0.70, strata = "default")
+data_train  <- training(data_split)
+data_test   <- testing(data_split)
+
+# Fit a multiple logistic regression model using only the training observations
+fit.train <- glm(default ~ income + balance, data = data_train, family = "binomial")
+## The family argument in the glm() function specifies the type of the model to be fitted.
+
+# Obtain a prediction of default status for each individual in
+# the validation set by computing the posterior probability of default for that individual, 
+# and classifying the individual to the default category if the posterior 
+# probability is greater than 0.5.
+pred <- ifelse(predict(fit.train, newdata = data_test, type = "response") > 0.5, "Yes", "No")
+pred
+
+# Compute the validation set error, which is the fraction of the observations 
+# in the validation set that are misclassified.
+table(pred, data_test$default) # Confusion matrix
+table(pred) # This is just to see the distribution, because confusion matrix is tricky
+table(data_test$default)
+# Correctly predicted no = 2890
+# Correctly predicted yes = 30
+# Wrongfully predicted no = 73
+# Wrongfully predicted yes = 7
+mean(pred != data_test$defaul)
+mean("No" != data_test$defaul)
+# It can be seen, that its wrong 2,66% of the times 
+# By saing just no to all, since it appears the most, we are wrong 3,43% of the times, 
+# so model is slightly better
+
+# d. Now consider a logistic regression model that predicts the probability 
+# of default using income, balance, and a dummy variable for student. 
+
+
+# Fit a multiple logistic regression model using only the training observations
+fit.train2 <- glm(default ~ income + balance + student, data = data_train, family = "binomial")
+## The family argument in the glm() function specifies the type of the model to be fitted.
+
+# Obtain a prediction of default status for each individual in
+# the validation set by computing the posterior probability of default for that individual, 
+# and classifying the individual to the default category if the posterior 
+# probability is greater than 0.5.
+pred2 <- ifelse(predict(fit.train2, newdata = data_test, type = "response") > 0.5, "Yes", "No")
+pred2
+
+# Compute the validation set error, which is the fraction of the observations 
+# in the validation set that are misclassified.
+table(pred2, data_test$default) # Confusion matrix
+table(pred2) # This is just to see the distribution, because confusion matrix is tricky
+table(data_test$default)
+# Correctly predicted no = 2889
+# Correctly predicted yes = 29
+# Wrongfully predicted no = 74
+# Wrongfully predicted yes = 8
+mean(pred2 != data_test$defaul)
+mean("No" != data_test$defaul)
+# It can be seen, that its wrong 2,66% of the times 
+# By saing just no to all, since it appears the most, we are wrong 3,43% of the times, 
+# so model is worse when including student and splitting the data 70/30
+
+###### Exercise 6 #######
+
+# a. Using the summary() and glm() functions, determine the estimated 
+# standard errors for the coefficients associated with income and balance 
+# in a multiple logistic regression model that uses both predictors.
+
+set.seed(42)
+glm.fit <- glm(default ~ income + balance, data = data_train, family = "binomial")
+summary(glm.fit)
+
+# b. Write a function,boot.fn(),that takes as inputt he Default data set 
+# as well as an index of the observations, and that outputs the coefficient estimates 
+# for income and balance in the multiple logistic regression model.
+
+library(boot)
+set.seed(123) #for replicability
+n <- length(Default$default) #To get the number of observations
+
+boot.fn <- function(Default, index){
+  income <- Default$income[index]
+  balance <- Default$balance[index]
+  fit <- glm(default ~ income + balance, data = Default[index, ], family = "binomial") 
+ (coef(fit))
+}
+
+# c. Use the boot() function together with your boot.fn() function to estimate 
+# the standard errors of the logistic regression coefficients for income and balance.
+
+bstrap <- boot(data=Default, statistic=boot.fn, R=100) 
+options(scipen=999)
+print(bstrap, digits=4) 
+
+# The bootstrap estimates of the standard errors for the coefficients 
+# β0, β1 and β2 are respectively 0.4208, 4.9 x 10(-6) and 2.07 x 10(-4).
+
+###### Exercise 7 ######## LOOCV
+
+# a. Fit a logistic regression model that predicts Direction using Lag1 and Lag2.
+data("Weekly")
+view(Weekly)
+fit_weekly <- glm(Direction ~ Lag1 + Lag2, data = Weekly, family = "binomial")
+
+# b- same as above but using all but the first observation.
+fit_weekly1 <- glm(Direction ~ Lag1 + Lag2, data = Weekly[-1, ], family = "binomial")
+
+# Use the model from (b) to predict the direction of the first observation.
+ifelse(predict(fit_weekly1, newdata = Weekly[1, , drop = FALSE], type = "response") > 0.5, "Up", "Down")
+
+Weekly[1, , drop = FALSE] # just to see the actual prediction, that is 0,57 and thereby above 0,5
+
+### d. Write a for loop from i=1 to i=n, where n is the number of observations 
+# in the data set, that performs each of the following steps:
+
+# i. Fit a logistic regression model using all but the ith observation 
+# to predict Direction using Lag1 and Lag2.
+# ii. Compute the posterior probability of the market moving up for the ith observation.
+# iii. Use the posterior probability for the ith observation 
+# in order to predict whether or not the market moves up.
+# iv. Determine whether or not an error was made in predicting the direction 
+# for the ith observation. If an error was made, then indicate this as a 1, 
+# and otherwise indicate it as a 0
+
+error <- numeric(nrow(Weekly))
+
+for (i in 1:nrow(Weekly)) {
+  fit <- glm(Direction ~ Lag1 + Lag2, data = Weekly[-i, ], family = "binomial")
+  p <- predict(fit, newdata = Weekly[i, , drop = FALSE], type = "response") > 0.5
+  error[i] <- ifelse(p, "Down", "Up") == Weekly$Direction[i]
+}
+
+# see the number of errors
+table(error)
+
+# e. Take the average of the n numbers obtained in (d)iv in order 
+# to obtain the LOOCV estimate for the test error. Comment on the results.
+mean(error)
+
+# The LOOCV test error rate is 45% which implies that our predictions are 
+# marginally more often correct than not. Since we are correct 55% of the times.
+
+##### Exercise 8 ######
+##### We will now perform cross-validation on a simulated data set.
+
+# a. generate simulated data
+set.seed(1)
+x <- rnorm(100)
+y <- x - 2 * x^2 + rnorm(100)
+
+# In this data set, what is n and what is p? 
+# Write out the model used to generate the data in equation form.
+
+# n is 100 and p is 1 (there are 100 observations and y is predicted with 
+# a single variable $x$)
+
+# b. Create a scatterplot of X against Y . Comment on what you find.
+plot(x,y)
+ # takes form of a normaldistribution
+
+# c. Set a random seed, and then compute the LOOCV errors that result 
+# from fitting the following four models using least squares:
+
+r_data <- data.frame(x,y)
+library(boot)
+set.seed(42)
+# i. Y = β0 + β1X + ε
+fit.glm.1 <- glm(y ~ x)
+cv.glm(r_data, fit.glm.1)$delta[1]
+
+# ii. Y =β0 +β1X+β2X2 +ε
+fit.glm.2 <- glm(y ~ poly(x, 2))
+cv.glm(r_data, fit.glm.2)$delta[1]
+
+# iii. Y =β0 +β1X+β2X2 +β3X3 +ε
+fit.glm.3 <- glm(y ~ poly(x, 3))
+cv.glm(r_data, fit.glm.3)$delta[1]
+# iv. Y =β0 +β1X+β2X2 +β3X3 +β4X4 +ε.
+fit.glm.4 <- glm(y ~ poly(x, 4))
+cv.glm(r_data, fit.glm.4)$delta[1]
+
+## The results are the same because we are using LOOCV. When doing this, the model
+ # is fit leaving each one of the observations out in turn, and thus there is no
+ # stochasticity involved.
+
+###############################################################################
+# The LOOCV estimate can be automatically computed for any generalized        #
+# linear model using the glm() and cv.glm() functions. In the lab for         #
+# Chapter 4, we used the glm() function to perform logistic                   #
+# regression by passing in the family = "binomial" argument.                  #
+# But if we use glm() to fit a model without passing in the family            #
+# argument, then it performs linear regression, just like the lm() function.  #
+###############################################################################
+
+## e. Which of the models in (c) had the smallest LOOCV error? 
+ ## Is this what you expected? Explain your answer.
+# We may see that the LOOCV estimate for the test MSE is minimum for 
+ # “fit.glm.2”, this is not surprising since we saw clearly in (b) 
+ # that the relation between “x” and “y” is quadratic.
+
+##### Exercise 9 ######
+data(Boston)
+view(Boston)
+n <- length(Boston$medv) # to use in calculation of standard error
+
+# a. Based on this data set, provide an estimate for the 
+ # population mean of medv. Call this estimate μˆ.
+mu_hat <- mean(Boston$medv)
+
+# b. Provide an estimate of the standard error of μˆ. Interpret this result.
+sd <- sd(Boston$medv)
+se <- sd/sqrt(n)
+se
+# Standard error of 0,4088
+
+# c. Now estimate the standard error of μˆ using the bootstrap. 
+ # How does this compare to your answer from (b)?
+
+library(boot)
+set.seed(123) 
+
+boot.fn <- function(Boston, index){
+  medv <- Boston$medv[index]
+  mean(medv)
+}
+
+boot.fn(Boston, sample(1:506, 506, replace = TRUE))
+
+bstrap <- boot(data=Boston, statistic=boot.fn, R=1000) 
+options(scipen=999)
+bstrap
+
+# The standard error using the bootstrap () is very close to that
+ # obtained from the formula above ().
+
+# d. Based on your bootstrap estimate from (c), provide a 95 % 
+ # confidence interval for the mean of medv. Compare it to the results 
+ # obtained using t.test(Boston$medv).
+
+# Find mean of the bstraps
+mean_boot <- mean(bstrap$t)
+mean_boot
+
+confidens_interval <- c(mean_boot- 2 * se, mean_boot + 2 * se)
+confidens_interval
+
+t.test(Boston$medv)
+
+##### The bootstrap confidence interval is very close to the one provided 
+    # by the t.test() function
+
+# e. Based on this data set, provide an estimate, μˆmed, for the 
+ # median value of medv in the population
+median(Boston$medv)
+
+# f. estimate the standard error of the median using the bootstrap. 
+ # Comment on your findings.
+boot.fn2 <- function(Boston, index){
+  medv <- Boston$medv[index]
+  median(medv)
+}
+
+boot.fn2(Boston, sample(1:506, 506, replace = TRUE))
+
+bstrap2 <- boot(data=Boston, statistic=boot.fn2, R=1000) 
+bstrap2
+
+# g. Based on this data set, provide an estimate for the tenth percentile 
+ # of medv in Boston census tracts. Call this quantity μˆ0.1. 
+ # (You can use the quantile() function.)
+
+percent.hat <- quantile(Boston$medv, c(0.1))
+percent.hat
+
+# h. Use the bootstrap to estimate the standard error
+boot.fn3 <- function(Boston, index) {
+  medv <- Boston$medv[index]
+  quantile(medv, c(0.1))
+}
+
+boot.fn3(Boston, sample(1:506, 506, replace = TRUE))
+
+bstrap3 <- boot(data=Boston, statistic=boot.fn3, R=1000) 
+bstrap3
+
+#####################################################################
+# Subset selection
+#####################################################################
+
+########## Exercise 8 ########## 
+
+## a. Use the rnorm() function to generate a predictor X of length 
+ # n = 100, as well as a noise vector ε of length n = 100.
+
+set.seed(12)
+x <- rnorm(100)
+error <- rnorm(100)
+
+## b. Generate a response vector Y of length n = 100 according to the model
+ # Y =β0 +β1X+β2X^2 +β3X^3 +ε,
+ # where β0, β1, β2, and β3 are constants of your choice.
+ # I choose: β0 = 10, β1 = 5, β2 = 2, and β3 = 7
+y <- 4 + -15*x + 22*x^2 + -7*x^2 + error
+
+## c. Use the regsubsets() function to perform best subset selection 
+ # in order to choose the best model containing the predictors X,X^2,...,X1^0. 
+ # What is the best model obtained according to Cp, BIC, and adjusted R2? 
+ # Show some plots to provide evidence for your answer, and report the 
+ # coefficients of the best model obtained. Note you will need to use 
+ # the data.frame() function to create a single data set containing both X and Y .
+
+library(leaps)
+
+data <- data.frame(x,y)
+
+x_matrix <- poly(x, 10, raw = T) 
+ # The poly(x, 10, raw = TRUE, simple = TRUE) call in R generates a matrix 
+ # of raw polynomial terms up to the 10th degree for the vector x.
+ # This means that column to is x^2 column 3 is x^3 etc. 
+
+model <- regsubsets(y ~ x_matrix, 
+                    nvmax = 10, 
+                    data = data)
+summary(model)
+names(summary(model)) #this is to see the different parameters you can choose to plot
+plot(summary(model)$cp, xlab="No of Variables", ylab="Cp", type="l") #figure of Cp
+plot(summary(model)$bic, xlab="No of Variables", ylab="Cp", type="l") #figure of Cp
+plot(summary(model)$adjr2, xlab="No of Variables", ylab="Cp", type="l") #figure of Cp
+
+ # Now I want to see the min k in each of the above
+which.min(summary(model)$cp) #at which p does Cp attain minimum? This produces p=10
+which.min(summary(model)$bic)
+which.min(summary(model)$adjr2)
+coef(model, 2) #here we can find coefficients of the model of cp and bic where 2 was min
+coef(model, 1) #here we can find coefficients of the model of adjr2 where 1 was min
+
+## d. Repeat (c), using forward stepwise selection and also using backwards 
+ # stepwise selection. How does your answer compare to the results in (c)?
+
+ #First i do forward stepwise selection
+model_forward <- regsubsets(y ~ x_matrix, 
+                            nvmax = 10, 
+                            data = data, 
+                            method = "forward")
+
+model_summary <- summary(model_forward)
+
+which.min(summary(model_forward)$cp) 
+which.min(summary(model_forward)$bic)
+which.min(summary(model_forward)$adjr2)
+ # The answer does not change, this might be because of the Betas estimated earlier
+
+model_backward <- regsubsets(y ~ x_matrix, 
+                            nvmax = 10, 
+                            data = data, 
+                            method = "backward")
+
+model_summary <- summary(model_backward)
+
+which.min(summary(model_backward)$cp) 
+which.min(summary(model_backward)$bic)
+which.min(summary(model_backward)$adjr2)
+
+## e. Now fit a lasso model to the simulated data, again using X,X^2, . . . , 
+ # X^10 as predictors. Use cross-validation to select the optimal value of λ. 
+ # Create plots of the cross-validation error as a function of λ. 
+ # Report the resulting coefficient estimates, and discuss the results obtained
+
+ # I use 5-fold cross-validation for a grid of 100 values of λ selecting 
+ # the value of λ corresponding to the smallest out-of-sample MSE.
+model_lasso <- cv.glmnet(y = y, 
+                         x = x_matrix, 
+                         alpha = 1, 
+                         lambda = 10^seq(1,-2, length = 100), 
+                         standardize = TRUE, 
+                         nfolds = 5)
+summary(model_lasso)
+
+# Plot the relation between lambda and cvm (cross-validation error)
+plot(model_lasso$lambda, model_lasso$cvm)
+
+# Make a dataframe in order to see lambda and cvm together and to find the optimal lambda
+df_lasso <- data.frame(lambda = model_lasso$lambda,
+                       cv_mse = model_lasso$cvm)
+
+# Here I find the optimal lambda, where the mse is the lowest
+optimal_lambda <- df_lasso$lambda[which.min(df_lasso$cv_mse)]
+
+# Get the coeffecients
+coef(model_lasso$finalModel) # This is not correct
+
+########## Exercise 9 ########## 
+ # In this exercise, we will predict the number of applications 
+ # received using the other variables in the College data set.
+
+data(College)
+
+# a. Split the data set into a training set and a test set.
+data_split <- initial_split(College, prop = 0.70)
+data_train  <- training(data_split)
+data_test   <- testing(data_split)
+
+# b. Fit a linear model using least squares on the training set, 
+ # and report the test error obtained.
+model_linear <- lm(Apps ~ ., data = data_train)
+summary(model_linear)
+
+ols_pred <- predict(model_linear, newdata = data_test)
+ols_mse <- mean((ols_pred - data_test$Apps)^2)
+
+# c. Fit a ridge regression model on the training set, with λ chosen 
+ # by cross-validation. Report the test error obtained
+
+ #First set x and y
+x <- model.matrix(Apps ~ ., data_train)[, -1]
+y <- data_train$Apps
+
+ ## The model.matrix() function is particularly useful for creating x; 
+  # not only does it produce a matrix corresponding to the 19 predictors 
+  # but it also automatically transforms any qualitative variables into dummy variables.
+  # I test varying values of λ (from 0.01 to 100) using 5-fold cross-validation:
+
+grid <- 10^seq(10, -2, length = 100)
+set.seed(12)
+
+ridge.model <- cv.glmnet(x = x, 
+                         y = y, 
+                         alpha = 0, # When alpha = 0 it means we make a ridge model
+                         lambda = grid, 
+                         nfolds = 10)
+
+ridge.model2 <- glmnet(x = x, 
+                         y = y, 
+                         alpha = 0, # When alpha = 0 it means we make a ridge model
+                         lambda = grid)
+summary(ridge.model)
+ridge.model$lambda
+ridge.model$cvm
+
+data.frame(lambda = ridge.model$lambda, 
+           cv_mse = ridge.model$cvm) %>%
+  ggplot(aes(x = lambda, y = cv_mse)) + 
+  geom_point() + 
+  geom_line() + 
+  geom_vline(xintercept = ridge.model$lambda.min, col = "deepskyblue3") +
+  geom_hline(yintercept = min(ridge.model$cvm), col = "deepskyblue3") +
+  scale_x_continuous(trans = 'log10', breaks = c(0.01, 0.1, 1, 10, 100), labels = c(0.01, 0.1, 1, 10, 100)) + 
+  scale_y_continuous(labels = scales::comma_format()) + 
+  theme(legend.position = "bottom") + 
+  labs(x = "Lambda", 
+       y = "Cross-Validation MSE", 
+       col = "Non-Zero Coefficients:", 
+       title = "Ridge Regression - Lambda Selection (Using 5-Fold Cross-Validation)")
+
+plot(ridge.model)
+bestlam <- ridge.model$lambda.min
+bestlam
+# I found that the best lambda is 0,01
+
+# In order to find the test error, I need to hold it up against the x for the testset
+x_test <- model.matrix(Apps ~ ., data_test)[, -1]
+
+# Now i will predict the applications
+ridge.pred <- predict(ridge.model, s = bestlam, newx = x_test)
+ridge.coef <- predict(ridge.model, type="coefficients", s=bestlam)
+
+ridge_mse <- mean((ridge.pred - data_test$Apps)^2)
+ridge_mse
+# vs
+ols_mse
+
+## d. Fit a lasso model on the training set, with λ chosen by crossvalidation. 
+ # Report the test error obtained, along with the number of non-zero coefficient estimates.
+model_lasso <- cv.glmnet(y = y, 
+                         x = x, 
+                         alpha = 1, 
+                         lambda = grid, 
+                         nfolds = 10)
+
+plot(model_lasso)
+bestlam2 <- model_lasso$lambda.min
+bestlam2
+
+lasso.pred <- predict(model_lasso, s = bestlam2, newx = x_test)
+
+lasso_mse <- mean((lasso.pred - data_test$Apps)^2)
+lasso_mse
+
