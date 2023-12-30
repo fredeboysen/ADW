@@ -1,1 +1,68 @@
+#################################################################
+##                     Data preparation
+#################################################################
+
+setwd("/Users/frederikboysen/Desktop/Eksamen ML/Exam2024")
+pumpkin_data <- read.csv("/Users/frederikboysen/Desktop/Eksamen ML/Exam2024/US-pumpkins_2.csv", stringsAsFactors=TRUE)
+
+view(pumpkin_data)
+
+pumpkin_data[pumpkin_data ==""] <- NA
+
+# Check the missing values in the dataset
+colSums(is.na(pumpkin_data))
+
+# select the variables i want to use in my model
+pumpkin_data <- subset(pumpkin_data, select = c(City.Name, Package, Variety, Origin, Item.Size, Color, Average.Price))
+
+# Drop rows containing missing values 
+pumpkin_data <- pumpkin_data %>% drop_na() 
+
+str(pumpkin_data)
+
+# I will divide the average price into high and low, in order to perform LR
+# I do this by finding the median price, and then use that as seperation value
+
+median(pumpkin_data$Average.Price)
+Avg.Price.bin <- ifelse(pumpkin_data$Average.Price > median(pumpkin_data$Average.Price), "High", "Low")
+
+# Make a new dataframe with the newly created variable and split again
+pumpkin_data = data.frame(pumpkin_data, Avg.Price.bin)
+
+# Make it a factor so I can make LR on it
+pumpkin_data$Avg.Price.bin <- factor(pumpkin_data$Avg.Price.bin)
+
+# make the item size ordinal scaled
+pumpkin_data$Item.Size <- factor(pumpkin_data$Item.Size, 
+                                 levels = c("sml", "med", "med-lge", "lge", "xlge", "jbo", "exjbo"), 
+                                 ordered = TRUE)
+
+
+str(pumpkin_data)
+
+# Display the distributions of factor features
+plot_bar(pumpkin_data) 
+
+# Check the factors, and conclude if lumping is necessary 
+count(pumpkin_data, Origin) %>%
+  arrange(n)
+
+# Lump the origin variable into other for n<10
+pumpkin_data$Origin <- fct_lump_min(pumpkin_data$Origin, min = 10)
+
+
+# Exploring the dataset, in order to see what could have impact on price
+table(is.na(pumpkin_data))
+summary(pumpkin_data)
+pairs(pumpkin_data)
+library (GGally) 
+ggpairs(pumpkin_data [, -c(9)])
+
+# Delete the average price variable, since it can predict the high low variable 
+pumpkin_data <- subset(pumpkin_data, select = -c(Average.Price))
+
+# Split the data into train and test set
+split <- initial_split(pumpkin_data, prop = 0.7, strata = "Avg.Price.bin")
+pumpkin_train  <- training(split)
+pumpkin_test   <- testing(split)
 
