@@ -566,7 +566,7 @@ plot(da.reg_beta) # the plot of the linear discriminants
 library(caret)   # for NB modeling
 library(e1071)   # for NB modeling
 
-# For naive bayes all x's must be categorical
+# For naive bayes all predictors must be categorical
 train.NB <- pumpkin_train
 test.NB <- pumpkin_test
 
