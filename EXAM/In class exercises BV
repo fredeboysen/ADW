@@ -1,0 +1,477 @@
+
+
+####################################################
+# In class exercise 2
+####################################################
+
+########### Exercise 1
+##Exercise 1.1
+#set up parameters
+M <- 1000
+beta <- 0.05
+n <- 100
+p.grid <- seq(6,50)
+select.adj.r2 <- matrix(NA,M,45) 
+select.BIC <- matrix(NA,M,45) 
+select.AIC <- matrix(NA,M, 45) 
+
+##Exercise 1.2
+#initiate loop
+
+for (m in seq(1,M)){
+  #report progress (1 = complete)
+  print(m/M)
+  #simulate TRUE data-generating process from Equation (1)
+  x <- matrix(rnorm(n*50),n,50)
+  y <- x[,1:5]%*%rep(beta,5) + rnorm(n,0,1) #here %*% is matrix multiplication.
+  #estimate model using the true 5 predictors
+  mod_true <- lm(y~x[,1:5])
+  #store MS criterion for largest model
+  adj.r2.true <- summary(mod_true)$adj.r.squared
+  bic.true <- BIC(mod_true)
+  aic.true <- AIC(mod_true)
+  
+  #loop over models of size from 6,7,...,50 predictors
+  for (p in p.grid){
+    #estimate model with p predictors (including the 5 true ones)
+    mod.p <- lm(y~x[,1:p])
+    #save model selection decision based on all 3 criteria
+    select.adj.r2[m,p-5] <- (adj.r2.true > summary(mod.p)$adj.r.squared) #R2 higher = better
+    select.BIC[m,p-5] <- (bic.true < BIC(mod.p)) #BIC lower = better
+    select.AIC[m,p-5] <- (aic.true < AIC(mod.p)) #AIC lower = better
+  }
+  
+}
+
+# Exercise 1.3 report share of correct selection of true model
+colMeans(select.adj.r2)
+colMeans(select.AIC)
+colMeans(select.BIC)
+
+#plot results
+##It is possible to plot these lines by using the built-in plot function.
+
+library(ggplot2)
+library(reshape2)
+plot.data <- data.frame("Degrees.of.Freedom"=p.grid,
+                        "Adjusted.R2"=colMeans(select.adj.r2),
+                        "BIC"=colMeans(select.BIC),
+                        "AIC"=colMeans(select.AIC))
+
+melted = melt(plot.data, id.vars="Degrees.of.Freedom")
+colnames(melted)[2] <- "criterion"
+ggplot() + geom_line(data=melted, 
+                     aes(x=Degrees.of.Freedom, y=value, group=criterion, color=criterion))
+
+## You may also do this plot simply by plot function as below, uncomment it if you want to run
+#plot(p.grid, colMeans(select.adj.r2) , type="l", col="red", xlab="Degrees of Freedom", 
+#     ylab="Probabilities", ylim=c(0.4,1.1))
+#lines(p.grid, colMeans(select.AIC), type="l", col="blue")
+#lines(p.grid, colMeans(select.BIC), type="l", col="green")
+
+#interpretation as in lecture:
+#Here we have a true model. We know that BIC is consistent, 
+#so should select true model with probability close to 1.
+#AIC and R2 are inconsistent. R2 actually converges to random model selection (value = 50).
+#AIC is better but is aimed at low risk prediction and not consistent model selection and 
+#thus the probabilities do not reach 1. 
+ #################################################################################
+ # Exercise 2
+#################################################################################
+
+# 2.1
+
+library(ISLR2)
+
+data("Smarket")
+
+# Remove today variabel
+Smarket <- subset(Smarket, select = -Today)
+
+# Recode the dependent variable Direction into a numeric (0/1
+Smarket$Direction <- ifelse(Smarket$Direction == "Up", 1, 0)
+
+# Split data in years 2001 – 2004 into training set and the data in the year 2005 into test set
+Smarket_train <- Smarket[Smarket$Year != 2005 ,]
+Smarket_test <- Smarket[Smarket$Year == 2005 ,]
+
+# drop the Year variable
+Smarket <- subset(Smarket, select = -Year)
+Smarket_train <- subset(Smarket_train, select = -Year)
+Smarket_test <- subset(Smarket_test, select = -Year)
+
+# 2.2
+# Logistic regression
+library(stats)
+logit.fit <- glm(Direction ~., family = binomial, data= Smarket_train )
+
+# Logistic regression using AIC
+library(bestglm)
+#bestglm function requires input in stacked X y form where the dependent variable is the last column.
+#so we set a separate data frame for this function.
+train.bglm <- Smarket_train[, c("Lag1", "Lag2", "Lag3", 
+                             "Lag4", "Lag5", 
+                             "Volume", "Direction")]
+
+
+#now we can apply this
+mod.logit.aic <- bestglm(train.bglm, IC = "AIC", family=binomial, method = "exhaustive")
+
+#compare coefficients
+
+logit.fit$coef
+mod.logit.aic$BestModel$coef
+summary(mod.logit.aic$BestModel$coef)
+
+help("bestglm")
+
+#logit model is a full model, while AIC optimal model is just an intercept only model. So we can't compare more than this.
+#AIC model predicts: Market goes up with 50.8016%, use 1/(1+exp(-beta)) formula.
+#This is independent of previous information, and 
+#hence no value in looking at return history or volume. 
+
+#2.3
+logit_test <- as.factor(ifelse(predict(logit.fit, newdata = Smarket_test, type = "response") > 0.5, 1, 0))
+logit_aic_test <- as.factor(ifelse(predict(mod.logit.aic$BestModel, newdata = Smarket_test, type = "response") > 0.5, 1, 0))
+
+# Making direction in test set a factor in order to make confusion matrix
+Smarket_test$Direction <- as.factor(Smarket_test$Direction)
+
+# Confusion matrix for simple model
+confusionMatrix(logit_test, Smarket_test$Direction)
+
+# Confusion matrix for AIC model - predicts all as going up/1
+table(logit_aic_test, Smarket_test$Direction)
+
+# Compare
+cbind(logit_test,logit_aic_test) 
+141/(141+111)
+
+# Prediction accuracy for simple model 0,48
+# Prediction accuracy for AIC model 0,56
+# None of the models are good
+
+
+# Exercise 1
+
+#1.1
+setwd("/Users/frederikboysen/Desktop/Eksamen ML/In class exercises")
+boston_data <- read.csv("/Users/frederikboysen/Desktop/Eksamen ML/In class exercises/bostonBI.csv")
+
+#1.2
+
+model <- regsubsets(medv ~ .,
+                    nvmax = 14, 
+                    data = boston_data)
+
+summary(model)
+names(summary(model)) #this is to see the different parameters you can choose to plot
+plot(summary(model)$cp, xlab="No of Variables", ylab="Cp", type="l") #figure of Cp
+plot(summary(model)$bic, xlab="No of Variables", ylab="bic", type="l") #figure of bic
+
+# Now I want to see the min k in each of the above
+which.min(summary(model)$cp) # at which p does Cp attain minimum? This produces p=11
+which.min(summary(model)$bic) # at which p does bic attain minimum? This produces p=11
+
+coef(model, 11) #here we can find coefficients of the model of cp and bic where 11 was min
+
+# We exclude the variables indus and age 
+
+# 1.3
+
+#First i do forward stepwise selection
+model_forward <- regsubsets(medv ~ .,
+                    nvmax = 14, 
+                    data = boston_data,
+                    method = "forward")
+
+model_summary <- summary(model_forward)
+
+which.min(summary(model_forward)$cp) 
+which.min(summary(model_forward)$bic)
+
+coef(model_forward, 11)
+
+# The answer does not change, this might be because of the Betas estimated earlier
+
+model_backward <- regsubsets(medv ~ .,
+                            nvmax = 14, 
+                            data = boston_data,
+                            method = "backward")
+
+model_summary <- summary(model_forward)
+
+which.min(summary(model_backward)$cp) 
+which.min(summary(model_backward)$bic)
+
+#Compare
+cbind(coef(model_backward, 11),coef(model_forward, 11), coef(model, 11))
+
+# 1.4
+
+#Defining x and y
+x <- model.matrix(medv ~ ., boston_data)[, -1]
+y <- boston_data$medv
+
+grid <- 10^seq(10, -2, length = 100)
+
+ridge.model <- glmnet(x = x, 
+                      y = y, 
+                      alpha = 0, 
+                      lambda = grid)
+
+summary(ridge.model)
+ridge.model$lambda
+
+# Compare the coefficient estimates and the l2 norm of the coefficient estimates 
+# for 3 different values in your grid
+
+ridge_model1 <- ridge.model$lambda[1]
+ridge_model50 <- ridge.model$lambda[50]
+ridge_model80 <- ridge.model$lambda[80]
+
+lambda1 <- glmnet(x, y, alpha = 0, lambda = ridge_model1)
+lambda50 <- glmnet(x, y, alpha = 0, lambda = ridge_model50)
+lambda80 <- glmnet(x, y, alpha = 0, lambda = ridge_model80)
+
+bestlam <- ridge.model$lambda.min
+bestlam
+
+best.model <- glmnet(x, y, alpha = 0, lambda = ridge_model$lambda.min)
+
+OLS <- lm(y ~ x, boston_data)
+
+round(cbind(coef(lambda1), coef(lambda50), coef(lambda80), coef(OLS)), digits = 5)
+
+#look at coefficients along grid.
+plot(ridge.model, xvar = "lambda")
+# The lower the lambda the more the coeffecients differ and gets closer to OLS
+
+# 1.5
+
+options(warn = 1)
+
+#LOOCV using cv.glmnet
+n <- length(y)  #sample size
+cv.ridge.loocv <- cv.glmnet(x = x,
+                            y = y,
+                            alpha=0, 
+                            nfolds = n, 
+                            lambda = grid)
+bestlam1 <- cv.ridge.loocv$lambda.min
+
+# cv with 5 and 10 folds
+set.seed(123)
+cv.ridge.model5 <- cv.glmnet(x = x, 
+                      y = y, 
+                      alpha = 0, 
+                      lambda = grid,
+                      nfolds = 5)
+
+bestlam2 <- cv.ridge.model5$lambda.min
+
+set.seed(123)
+cv.ridge.model10 <- cv.glmnet(x = x, 
+                             y = y, 
+                             alpha = 0, 
+                             lambda = grid,
+                             nfolds = 10)
+
+bestlam3 <- cv.ridge.model10$lambda.min
+
+#LOOCV is smaller (0.07) than other two (which are 0.123 and 0.04)
+c(bestlam1, bestlam2, bestlam3)
+
+# 1.6 - lasso
+#Defining x and y
+x <- model.matrix(medv ~ ., boston_data)[, -1]
+y <- boston_data$medv
+
+grid <- 10^seq(10, -2, length = 100)
+
+lasso.model <- glmnet(x = x, 
+                      y = y, 
+                      alpha = 1, 
+                      lambda = grid)
+
+summary(lasso.model)
+lasso.model$lambda
+
+# Compare the coefficient estimates and the l2 norm of the coefficient estimates 
+# for 3 different values in your grid
+
+lasso.model1 <- lasso.model$lambda[1]
+lasso.model80 <- lasso.model$lambda[80]
+lasso.model99 <- lasso.model$lambda[99]
+
+lambda1 <- glmnet(x, y, alpha = 1, lambda = lasso.model1)
+lambda75 <- glmnet(x, y, alpha = 1, lambda = lasso.model80)
+lambda99 <- glmnet(x, y, alpha = 1, lambda = lasso.model99)
+
+OLS <- lm(y ~ x, boston_data)
+
+round(cbind(coef(lambda1), coef(lambda75), coef(lambda99), coef(OLS)), digits = 5)
+
+#plot coefficient path
+plot(lasso.model, xvar = "lambda")
+
+#1.7
+set.seed(123)
+cv.lasso.model5 <- cv.glmnet(x = x, 
+                             y = y, 
+                             alpha = 1, 
+                             lambda = grid,
+                             nfolds = 5)
+
+bestlam <- cv.lasso.model5$lambda.min
+# Best lambda is 0,0175
+
+# 1.8
+#Let's define predictions models, remember here we use training set as x.
+l2.pred <- predict(cv.ridge.model10, s=bestlam3, newx = x)
+l1.pred <- predict(cv.lasso.model5, s=bestlam, newx = x)
+lm.pred <- predict(OLS)
+#get predictions, summary statistics of prediction of three models are very close.
+summary(l2.pred)
+summary(l1.pred)
+summary(lm.pred)
+
+#compare to OLS, correlations are 0.99
+cor(lm.pred,l2.pred)
+cor(lm.pred,l1.pred)
+
+accuracy(l2.pred, data$medv)
+
+#1.9
+set.seed(1)
+library(rsample)
+split <- initial_split(boston_data, prop = 404/506, strata = "medv")
+train  <- training(split)
+test   <- testing(split)
+
+# From Ben - but I'll use my own this time #############################
+sample_id <- sample(1:dim(Boston)[1],dim(Boston)[1], replace = FALSE)
+
+train_id <- sample_id[1:404]
+test_id <- sample_id[405:506]
+# From Ben - but I'll use my own this time #############################
+
+#Defining x and y for train and test
+x_train <- model.matrix(medv ~ ., train)[, -1]
+y_train <- train$medv
+
+x_test <- model.matrix(medv ~ ., test)[, -1]
+y_test <- test$medv
+
+grid <- 10^seq(10, -2, length = 100)
+
+ridge.model <- cv.glmnet(x = x_train, 
+                         y = y_train, 
+                         alpha = 0, 
+                         lambda = grid,
+                         nfolds = 10)
+lambda.ridge <- ridge.model$lambda.min
+
+lasso.model <- cv.glmnet(x = x_train, 
+                      y = y_train, 
+                      alpha = 1, 
+                      lambda = grid,
+                      nfolds = 10)
+lambda.lasso <- lasso.model$lambda.min
+
+elastic.model <- cv.glmnet(x = x_train, 
+                      y = y_train, 
+                      alpha = 0.5, 
+                      lambda = grid,
+                      nfolds = 10)
+lambda.elastic <- elastic.model$lambda.min
+
+# Using best lambda to make the best model for each
+best.model.ridge <- glmnet(x = x_train,
+                            y = y_train,
+                            lambda = lambda.ridge)
+
+best.model.lasso <- glmnet(x = x_train,
+                            y = y_train,
+                            lambda = lambda.lasso)
+
+best.model.elastic <- glmnet(x = x_train,
+                            y = y_train,
+                            lambda = lambda.elastic)
+
+OLS_test <- lm(medv~., data=train)
+
+# Predict using the above model
+pred_ridge <- predict(best.model.ridge, s=lambda.ridge, newx = x_test)
+mean(y_test - pred_ridge)^2
+pred_lasso <- predict(best.model.lasso, s=lambda.lasso, newx = x_test)
+mean(y_test - pred_lasso)^2
+pred_elastic <- predict(best.model.elastic, s=lambda.elastic, newx = x_test)
+mean(y_test - pred_elastic)^2
+pred_OLS <- predict(OLS_test, newdata = test)
+mean(y_test - pred_OLS)^2
+
+# Lowest MSE is ridge
+
+# lasso, ridge and elastic net are all close to each other
+#and have 0.5-1% prediction gain over ols.
+#These gains are not surprising because p=13 in this example is small relative to n. 
+
+############# Problem 2
+
+# 2.1
+setwd("/Users/frederikboysen/Desktop/Eksamen ML/In class exercises")
+
+lymphx <- read.table("/Users/frederikboysen/Desktop/Eksamen ML/In class exercises/lymphx.txt", quote="\"", comment.char="")
+lymphstatus <- read.table("/Users/frederikboysen/Desktop/Eksamen ML/In class exercises/lymphstatus.txt", quote="\"", comment.char="")
+#save data in matrix form 
+x <- as.matrix(lymphx)
+y <- as.matrix(lymphstatus)
+
+lr_model <- glm(y ~ x, family = "binomial")
+#logit model is not feasible. Indeed, we see that algorithm does not converge due to p > n 
+#Similar to ols, we can estimate logistic regression with maximum likelihood if p> n. 
+#because there will be more parameter values than corresponding moment equations set to zero.
+grid <- 10^seq(10, -2, length = 100)
+
+lr_model2 <- cv.glmnet(x = x,
+                       y = y,
+                       family = "binomial",
+                       nfolds = 10,
+                       alpha = 1,
+                       lambda = grid,
+                       type.measure = "deviance")
+
+lr_model3 <- cv.glmnet(x = x,
+                       y = y,
+                       family = "binomial",
+                       nfolds = 10,
+                       alpha = 1,
+                       lambda = grid,
+                       type.measure = "class")
+
+#to get an initial idea, let's check which lambdas produce minimizations
+lr_model2$lambda.min #this gives 0.07
+lr_model3$lambda.min #this gives 0.03
+
+plot(lr_model2$cvm)
+plot(lr_model3$cvm)
+
+#to be sure about the upper and lower curves, we need to it manually as requested by the task
+library(ggplot2)
+#for model 1, unlike above these plots as a function of lambda
+df1 <- data.frame("lambda" = lr_model2$lambda,"cvm" = lr_model2$cvm,"cvup" = lr_model2$cvup,
+                  "cvlo" = lr_model2$cvlo)
+ggplot(df1, aes(x=lambda)) +
+  geom_point(aes(y=cvm), color ="blue") +
+  geom_errorbar(aes(ymin = cvlo, ymax = cvup), color = "lightblue") +
+  theme_minimal()
+#for model 2
+df2 <- data.frame("lambda" = lr_model3$lambda,"cvm" = lr_model3$cvm,"cvup" = lr_model3$cvup,
+                  "cvlo" = lr_model3$cvlo)
+ggplot(df2, aes(x=lambda)) +
+  geom_point(aes(y=cvm), color ="blue") +
+  geom_errorbar(aes(ymin = cvlo, ymax = cvup), color = "lightblue") +
+  theme_minimal()
+
+#1.3
